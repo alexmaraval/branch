@@ -1,17 +1,12 @@
+const STORAGE_KEY = "branch_v0_1_state";
+
 const state = {
-  nodes: {
-    root: {
-      id: "root",
-      parentId: null,
-      userText: null,
-      assistantText: null,
-      createdAt: Date.now(),
-    },
-  },
+  nodes: {},
   branches: [],
   currentBranchId: null,
   isSending: false,
   pendingAssistant: null,
+  pendingUser: null,
 };
 
 const elements = {
@@ -22,23 +17,58 @@ const elements = {
   userInput: document.getElementById("userInput"),
   sendBtn: document.getElementById("sendBtn"),
   branchBtn: document.getElementById("branchBtn"),
+  renameBtn: document.getElementById("renameBtn"),
   status: document.getElementById("status"),
   currentBranch: document.getElementById("currentBranch"),
 };
 
 function init() {
-  const mainBranch = createBranch("Main", "root");
-  state.currentBranchId = mainBranch.id;
+  loadState();
+  if (!state.currentBranchId) {
+    state.nodes.root = {
+      id: "root",
+      parentId: null,
+      userText: null,
+      assistantText: null,
+      createdAt: Date.now(),
+    };
+    const mainBranch = createBranch("Main", "root");
+    setCurrentBranch(mainBranch.id, false);
+  }
   renderAll();
 
   elements.sendBtn.addEventListener("click", sendMessage);
   elements.branchBtn.addEventListener("click", createBranchFromCurrent);
+  elements.renameBtn.addEventListener("click", renameCurrentBranch);
   elements.userInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       sendMessage();
     }
   });
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return;
+    state.nodes = parsed.nodes || {};
+    state.branches = parsed.branches || [];
+    state.currentBranchId = parsed.currentBranchId || null;
+  } catch (err) {
+    console.warn("Failed to load saved state", err);
+  }
+}
+
+function saveState() {
+  const data = {
+    nodes: state.nodes,
+    branches: state.branches,
+    currentBranchId: state.currentBranchId,
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
 function createBranch(name, headId) {
@@ -49,6 +79,7 @@ function createBranch(name, headId) {
     createdAt: Date.now(),
   };
   state.branches.push(branch);
+  saveState();
   return branch;
 }
 
@@ -60,7 +91,24 @@ function createBranchFromCurrent() {
   if (!name || !name.trim()) return;
 
   const newBranch = createBranch(name, current.headId);
-  state.currentBranchId = newBranch.id;
+  setCurrentBranch(newBranch.id);
+}
+
+function renameCurrentBranch() {
+  const current = getCurrentBranch();
+  if (!current) return;
+
+  const name = prompt("Rename current branch:", current.name);
+  if (!name || !name.trim()) return;
+
+  current.name = name.trim();
+  saveState();
+  renderAll();
+}
+
+function setCurrentBranch(branchId, persist = true) {
+  state.currentBranchId = branchId;
+  if (persist) saveState();
   renderAll();
 }
 
@@ -90,12 +138,6 @@ function buildMessagesForBranch(branch) {
   return messages;
 }
 
-function snippet(text) {
-  if (!text) return "(empty)";
-  const trimmed = text.replace(/\s+/g, " ").trim();
-  return trimmed.length > 28 ? `${trimmed.slice(0, 28)}...` : trimmed;
-}
-
 function buildChildrenMap() {
   const map = {};
   Object.values(state.nodes).forEach((node) => {
@@ -115,7 +157,7 @@ function buildTreeLines() {
 
   lines.push({
     prefix: "",
-    text: "root",
+    text: "\u25cf",
     nodeId: "root",
   });
 
@@ -130,11 +172,9 @@ function buildTreeLines() {
 
 function addNodeLine(nodeId, prefix, isLast, childrenMap, lines) {
   const connector = isLast ? "\u2514\u2500 " : "\u251c\u2500 ";
-  const node = state.nodes[nodeId];
-  const label = node ? `assistant: ${snippet(node.assistantText)}` : "assistant";
   lines.push({
     prefix: `${prefix}${connector}`,
-    text: label,
+    text: "\u25cf",
     nodeId,
   });
 
@@ -174,8 +214,7 @@ function renderTree() {
       }
       button.textContent = branch.name;
       button.addEventListener("click", () => {
-        state.currentBranchId = branch.id;
-        renderAll();
+        setCurrentBranch(branch.id);
       });
       row.appendChild(button);
     });
@@ -201,6 +240,13 @@ function renderChat() {
     assistantBubble.textContent = node.assistantText;
     elements.chat.appendChild(assistantBubble);
   });
+
+  if (state.pendingUser) {
+    const pendingUser = document.createElement("div");
+    pendingUser.className = "message user pending";
+    pendingUser.textContent = state.pendingUser;
+    elements.chat.appendChild(pendingUser);
+  }
 
   if (state.pendingAssistant) {
     const pending = document.createElement("div");
@@ -258,7 +304,8 @@ async function sendMessage() {
   }
 
   state.isSending = true;
-  state.pendingAssistant = "Thinking...";
+  state.pendingUser = userText;
+  state.pendingAssistant = "";
   elements.userInput.value = "";
   renderAll();
 
@@ -266,34 +313,102 @@ async function sendMessage() {
   messages.push({ role: "user", content: userText });
 
   try {
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ apiKey, model, messages }),
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || "Request failed");
-    }
+    const assistantText = await streamChat({ apiKey, model, messages });
 
     const nodeId = crypto.randomUUID();
     state.nodes[nodeId] = {
       id: nodeId,
       parentId: current.headId,
       userText,
-      assistantText: data.assistant || "(empty response)",
+      assistantText: assistantText || "(empty response)",
       createdAt: Date.now(),
     };
 
     current.headId = nodeId;
+    saveState();
   } catch (err) {
     alert(err.message || "Something went wrong");
   } finally {
     state.isSending = false;
     state.pendingAssistant = null;
+    state.pendingUser = null;
     renderAll();
   }
+}
+
+async function streamChat(payload) {
+  const response = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, stream: true }),
+  });
+
+  const contentType = response.headers.get("content-type") || "";
+  if (!response.ok && !contentType.includes("text/event-stream")) {
+    const data = await response.json();
+    throw new Error(data.error || "Request failed");
+  }
+
+  if (!contentType.includes("text/event-stream")) {
+    const data = await response.json();
+    return data.assistant;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let assistantText = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop();
+
+    for (const part of parts) {
+      const lines = part.split("\n");
+      let eventType = "message";
+      let dataLine = "";
+      for (const line of lines) {
+        if (line.startsWith("event:")) {
+          eventType = line.replace("event:", "").trim();
+        } else if (line.startsWith("data:")) {
+          dataLine = line.replace("data:", "").trim();
+        }
+      }
+
+      if (eventType === "error") {
+        try {
+          const errPayload = JSON.parse(dataLine);
+          throw new Error(errPayload.error || "Stream error");
+        } catch (err) {
+          throw new Error("Stream error");
+        }
+      }
+
+      if (dataLine === "[DONE]") {
+        return assistantText;
+      }
+
+      if (dataLine) {
+        try {
+          const payload = JSON.parse(dataLine);
+          if (payload.delta) {
+            assistantText += payload.delta;
+            state.pendingAssistant = assistantText;
+            renderChat();
+            renderStatus();
+          }
+        } catch (err) {
+          console.warn("Bad stream chunk", err);
+        }
+      }
+    }
+  }
+
+  return assistantText;
 }
 
 init();
