@@ -17,6 +17,11 @@
           <div id="currentBranch" class="current-branch"></div>
         </div>
         <div id="tree" class="tree"></div>
+        <div class="sidebar-actions">
+          <button id="exportBtn" class="btn ghost">Export JSON</button>
+          <button id="importBtn" class="btn ghost">Import JSON</button>
+          <input id="importFile" type="file" accept="application/json" hidden />
+        </div>
       </aside>
 
       <main class="main">
@@ -36,6 +41,7 @@
           </div>
           <div class="actions">
             <button id="renameBtn" class="btn ghost">Rename</button>
+            <button id="deleteBtn" class="btn ghost">Delete</button>
             <button id="branchBtn" class="btn">Branch</button>
           </div>
         </header>

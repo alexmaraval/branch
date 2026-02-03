@@ -18,6 +18,10 @@ const elements = {
   sendBtn: document.getElementById("sendBtn"),
   branchBtn: document.getElementById("branchBtn"),
   renameBtn: document.getElementById("renameBtn"),
+  deleteBtn: document.getElementById("deleteBtn"),
+  exportBtn: document.getElementById("exportBtn"),
+  importBtn: document.getElementById("importBtn"),
+  importFile: document.getElementById("importFile"),
   status: document.getElementById("status"),
   currentBranch: document.getElementById("currentBranch"),
 };
@@ -32,7 +36,7 @@ function init() {
       assistantText: null,
       createdAt: Date.now(),
     };
-    const mainBranch = createBranch("Main", "root");
+    const mainBranch = createBranch("Main", "root", false);
     setCurrentBranch(mainBranch.id, false);
   }
   renderAll();
@@ -40,6 +44,11 @@ function init() {
   elements.sendBtn.addEventListener("click", sendMessage);
   elements.branchBtn.addEventListener("click", createBranchFromCurrent);
   elements.renameBtn.addEventListener("click", renameCurrentBranch);
+  elements.deleteBtn.addEventListener("click", deleteCurrentBranch);
+  elements.exportBtn.addEventListener("click", exportTree);
+  elements.importBtn.addEventListener("click", () => elements.importFile.click());
+  elements.importFile.addEventListener("change", importTree);
+
   elements.userInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -71,12 +80,13 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
-function createBranch(name, headId) {
+function createBranch(name, headId, autoNamePending = false) {
   const branch = {
     id: crypto.randomUUID(),
     name: name.trim(),
     headId,
     createdAt: Date.now(),
+    autoNamePending,
   };
   state.branches.push(branch);
   saveState();
@@ -87,10 +97,8 @@ function createBranchFromCurrent() {
   const current = getCurrentBranch();
   if (!current) return;
 
-  const name = prompt("Name your new branch:");
-  if (!name || !name.trim()) return;
-
-  const newBranch = createBranch(name, current.headId);
+  const nextIndex = state.branches.length + 1;
+  const newBranch = createBranch(`Branch ${nextIndex}`, current.headId, true);
   setCurrentBranch(newBranch.id);
 }
 
@@ -102,8 +110,50 @@ function renameCurrentBranch() {
   if (!name || !name.trim()) return;
 
   current.name = name.trim();
+  current.autoNamePending = false;
   saveState();
   renderAll();
+}
+
+function deleteCurrentBranch() {
+  const current = getCurrentBranch();
+  if (!current) return;
+
+  const confirmed = confirm(`Delete branch "${current.name}"?`);
+  if (!confirmed) return;
+
+  state.branches = state.branches.filter((branch) => branch.id !== current.id);
+
+  if (state.branches.length === 0) {
+    const mainBranch = createBranch("Main", "root", false);
+    setCurrentBranch(mainBranch.id);
+  } else {
+    setCurrentBranch(state.branches[0].id);
+  }
+
+  pruneOrphanNodes();
+  saveState();
+  renderAll();
+}
+
+function pruneOrphanNodes() {
+  const keep = new Set(["root"]);
+  for (const branch of state.branches) {
+    let cursor = branch.headId;
+    while (cursor && cursor !== "root") {
+      if (keep.has(cursor)) break;
+      keep.add(cursor);
+      const node = state.nodes[cursor];
+      if (!node) break;
+      cursor = node.parentId;
+    }
+  }
+
+  Object.keys(state.nodes).forEach((nodeId) => {
+    if (!keep.has(nodeId)) {
+      delete state.nodes[nodeId];
+    }
+  });
 }
 
 function setCurrentBranch(branchId, persist = true) {
@@ -279,6 +329,14 @@ function renderAll() {
   renderCurrentBranch();
 }
 
+function autoNameBranchFromPrompt(branch, userText) {
+  if (!branch.autoNamePending) return;
+  const trimmed = userText.replace(/\s+/g, " ").trim();
+  if (!trimmed) return;
+  branch.name = trimmed.length > 24 ? `${trimmed.slice(0, 24)}...` : trimmed;
+  branch.autoNamePending = false;
+}
+
 async function sendMessage() {
   if (state.isSending) return;
 
@@ -311,6 +369,9 @@ async function sendMessage() {
 
   const messages = buildMessagesForBranch(current);
   messages.push({ role: "user", content: userText });
+
+  autoNameBranchFromPrompt(current, userText);
+  saveState();
 
   try {
     const assistantText = await streamChat({ apiKey, model, messages });
@@ -409,6 +470,72 @@ async function streamChat(payload) {
   }
 
   return assistantText;
+}
+
+function exportTree() {
+  const data = {
+    nodes: state.nodes,
+    branches: state.branches,
+    currentBranchId: state.currentBranchId,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `branch-export-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function importTree(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      if (!parsed || typeof parsed !== "object") {
+        throw new Error("Invalid JSON file");
+      }
+
+      state.nodes = parsed.nodes || {};
+      state.branches = parsed.branches || [];
+      state.currentBranchId = parsed.currentBranchId || null;
+
+      if (!state.nodes.root) {
+        state.nodes.root = {
+          id: "root",
+          parentId: null,
+          userText: null,
+          assistantText: null,
+          createdAt: Date.now(),
+        };
+      }
+
+      if (!state.currentBranchId && state.branches.length > 0) {
+        state.currentBranchId = state.branches[0].id;
+      }
+
+      if (state.branches.length === 0) {
+        const mainBranch = createBranch("Main", "root", false);
+        state.currentBranchId = mainBranch.id;
+      }
+
+      pruneOrphanNodes();
+      saveState();
+      renderAll();
+    } catch (err) {
+      alert(err.message || "Failed to import");
+    } finally {
+      event.target.value = "";
+    }
+  };
+  reader.readAsText(file);
 }
 
 init();
