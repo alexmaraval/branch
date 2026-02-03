@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Branch - Chat Tree</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div>
+            <div class="brand">branch</div>
+            <div class="subtitle">Chat tree explorer</div>
+          </div>
+          <div id="currentBranch" class="current-branch"></div>
+        </div>
+        <div id="tree" class="tree"></div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="field">
+            <label for="apiKey">API Key</label>
+            <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="model">Model</label>
+            <input id="model" list="model-list" placeholder="gpt-4o-mini" value="gpt-4o-mini" />
+            <datalist id="model-list">
+              <option value="gpt-4o-mini"></option>
+              <option value="gpt-4.1-mini"></option>
+              <option value="gpt-4.1"></option>
+            </datalist>
+          </div>
+          <button id="branchBtn" class="btn">Branch</button>
+        </header>
+
+        <section id="chat" class="chat"></section>
+
+        <footer class="composer">
+          <textarea id="userInput" rows="3" placeholder="Type your message..."></textarea>
+          <div class="composer-actions">
+            <div id="status" class="status"></div>
+            <button id="sendBtn" class="btn primary">Send</button>
+          </div>
+        </footer>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

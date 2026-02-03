@@ -1,0 +1,243 @@
+:root {
+  --bg: #f3f0ea;
+  --panel: #fff9f0;
+  --ink: #1f1c19;
+  --muted: #6c625a;
+  --accent: #e4572e;
+  --accent-2: #f3a712;
+  --border: #e2d6c7;
+  --shadow: 0 10px 30px rgba(31, 28, 25, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: radial-gradient(circle at top left, #fff7e6, var(--bg));
+  min-height: 100vh;
+}
+
+#app {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sidebar-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.brand {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.current-branch {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 6px 10px;
+  background: #fff;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  width: fit-content;
+}
+
+.tree {
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  overflow-x: auto;
+  animation: fadeIn 0.4s ease;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: pre;
+}
+
+.tree-label {
+  color: var(--muted);
+}
+
+.tree-branch {
+  border: 1px solid var(--border);
+  background: #fff3e6;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tree-branch.current {
+  background: var(--accent);
+  color: #fff;
+  border-color: transparent;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.topbar {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.field input {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.btn {
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+  border: none;
+}
+
+.chat {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.message {
+  max-width: 70%;
+  padding: 14px 16px;
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  line-height: 1.5;
+  background: #fff;
+}
+
+.message.user {
+  align-self: flex-end;
+  background: #fff3e6;
+}
+
+.message.assistant {
+  align-self: flex-start;
+  background: #fff;
+}
+
+.message.pending {
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.composer {
+  padding: 20px 24px;
+  border-top: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+#userInput {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  padding: 12px 14px;
+  font-size: 14px;
+  resize: vertical;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.status {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 900px) {
+  #app {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .topbar {
+    grid-template-columns: 1fr;
+  }
+
+  .message {
+    max-width: 100%;
+  }
+}
