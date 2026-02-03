@@ -28,11 +28,21 @@
         <header class="topbar">
           <div class="field">
             <label for="apiKey">API Key</label>
-            <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+            <input
+              id="apiKey"
+              type="password"
+              placeholder="sk-..."
+              autocomplete="off"
+            />
           </div>
           <div class="field">
             <label for="model">Model</label>
-            <input id="model" list="model-list" placeholder="gpt-4o-mini" value="gpt-4o-mini" />
+            <input
+              id="model"
+              list="model-list"
+              placeholder="gpt-4o-mini"
+              value="gpt-4o-mini"
+            />
             <datalist id="model-list">
               <option value="gpt-4o-mini"></option>
               <option value="gpt-4.1-mini"></option>
@@ -49,7 +59,11 @@
         <section id="chat" class="chat"></section>
 
         <footer class="composer">
-          <textarea id="userInput" rows="3" placeholder="Type your message..."></textarea>
+          <textarea
+            id="userInput"
+            rows="3"
+            placeholder="Type your message..."
+          ></textarea>
           <div class="composer-actions">
             <div id="status" class="status"></div>
             <button id="sendBtn" class="btn primary">Send</button>

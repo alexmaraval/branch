@@ -31,6 +31,27 @@ http://localhost:8000
 - Export: Click "Export JSON" in the left panel.
 - Import: Click "Import JSON" and choose a previously exported file.
 
+## Development
+### Install dev tools
+```bash
+python -m pip install -r requirements-dev.txt
+```
+
+### Pre-commit hooks
+```bash
+pre-commit install
+```
+
+### Run checks
+```bash
+pre-commit run --all-files
+```
+
+### Run tests
+```bash
+pytest
+```
+
 ## Notes
 - This is a local prototype and stores chat state in your browser (localStorage).
 - API keys stay on your machine. The app proxies requests through the local Python server.

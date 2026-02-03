@@ -1,8 +1,8 @@
 import json
 import os
 import sys
-import urllib.request
 import urllib.error
+import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 WEB_DIR = os.path.join(os.path.dirname(__file__), "web")
@@ -112,13 +112,13 @@ class BranchHandler(SimpleHTTPRequestHandler):
                 self._send_sse_data(json.dumps({"delta": delta}))
 
     def _send_sse_data(self, data):
-        message = f"data: {data}\n\n".encode("utf-8")
+        message = f"data: {data}\n\n".encode()
         self.wfile.write(message)
         self.wfile.flush()
 
     def _send_sse_error(self, message):
         payload = json.dumps({"error": message})
-        event = f"event: error\ndata: {payload}\n\n".encode("utf-8")
+        event = f"event: error\ndata: {payload}\n\n".encode()
         self.wfile.write(event)
         self.wfile.flush()
 

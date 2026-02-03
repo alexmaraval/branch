@@ -46,7 +46,9 @@ function init() {
   elements.renameBtn.addEventListener("click", renameCurrentBranch);
   elements.deleteBtn.addEventListener("click", deleteCurrentBranch);
   elements.exportBtn.addEventListener("click", exportTree);
-  elements.importBtn.addEventListener("click", () => elements.importFile.click());
+  elements.importBtn.addEventListener("click", () =>
+    elements.importFile.click(),
+  );
   elements.importFile.addEventListener("change", importTree);
 
   elements.userInput.addEventListener("keydown", (event) => {
@@ -196,7 +198,9 @@ function buildChildrenMap() {
     map[node.parentId].push(node.id);
   });
   Object.values(map).forEach((children) => {
-    children.sort((a, b) => state.nodes[a].createdAt - state.nodes[b].createdAt);
+    children.sort(
+      (a, b) => state.nodes[a].createdAt - state.nodes[b].createdAt,
+    );
   });
   return map;
 }
