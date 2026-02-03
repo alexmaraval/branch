@@ -26,6 +26,18 @@ const elements = {
   currentBranch: document.getElementById("currentBranch"),
 };
 
+function renderMarkdown(text) {
+  if (!window.marked) {
+    return text;
+  }
+  return window.marked.parse(text || "", {
+    breaks: true,
+    gfm: true,
+    headerIds: false,
+    mangle: false,
+  });
+}
+
 function init() {
   loadState();
   if (!state.currentBranchId) {
@@ -291,7 +303,7 @@ function renderChat() {
 
     const assistantBubble = document.createElement("div");
     assistantBubble.className = "message assistant";
-    assistantBubble.textContent = node.assistantText;
+    assistantBubble.innerHTML = renderMarkdown(node.assistantText);
     elements.chat.appendChild(assistantBubble);
   });
 
@@ -305,7 +317,7 @@ function renderChat() {
   if (state.pendingAssistant) {
     const pending = document.createElement("div");
     pending.className = "message assistant pending";
-    pending.textContent = state.pendingAssistant;
+    pending.innerHTML = renderMarkdown(state.pendingAssistant);
     elements.chat.appendChild(pending);
   }
 

@@ -14,6 +14,9 @@ htmlcov/
 # Virtual environments
 .venv
 
+# pycharm
+.idea
+
 # OS files
 .DS_Store
 
