@@ -54,7 +54,7 @@ body {
 }
 
 .current-branch {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted);
   padding: 6px 10px;
   background: #fff;
@@ -65,12 +65,12 @@ body {
 
 .tree {
   font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.6;
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 16px;
+  padding: 14px;
   box-shadow: var(--shadow);
   overflow-x: auto;
   animation: fadeIn 0.4s ease;
@@ -84,7 +84,7 @@ body {
 }
 
 .tree-label {
-  color: var(--muted);
+  color: #c1b3a3;
 }
 
 .tree-branch {
@@ -93,7 +93,7 @@ body {
   color: var(--ink);
   border-radius: 999px;
   padding: 2px 8px;
-  font-size: 12px;
+  font-size: 11px;
   cursor: pointer;
 }
 
@@ -101,6 +101,12 @@ body {
   background: var(--accent);
   color: #fff;
   border-color: transparent;
+}
+
+.sidebar-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .main {
@@ -136,6 +142,14 @@ body {
   color: var(--ink);
 }
 
+.actions {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .btn {
   padding: 10px 16px;
   border-radius: 999px;
@@ -143,6 +157,10 @@ body {
   background: #fff;
   cursor: pointer;
   font-weight: 600;
+}
+
+.btn.ghost {
+  background: transparent;
 }
 
 .btn.primary {
@@ -177,6 +195,42 @@ body {
 .message.assistant {
   align-self: flex-start;
   background: #fff;
+}
+
+.message.assistant h1,
+.message.assistant h2,
+.message.assistant h3,
+.message.assistant h4 {
+  margin: 0 0 10px;
+}
+
+.message.assistant p {
+  margin: 0 0 10px;
+}
+
+.message.assistant ul,
+.message.assistant ol {
+  margin: 0 0 10px 20px;
+  padding: 0;
+}
+
+.message.assistant code {
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+  background: #f7efe5;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.message.assistant pre {
+  background: #f7efe5;
+  padding: 10px 12px;
+  border-radius: 12px;
+  overflow-x: auto;
+}
+
+.message.assistant pre code {
+  background: transparent;
+  padding: 0;
 }
 
 .message.pending {
@@ -235,6 +289,10 @@ body {
 
   .topbar {
     grid-template-columns: 1fr;
+  }
+
+  .actions {
+    justify-content: flex-start;
   }
 
   .message {

@@ -1,17 +1,12 @@
+const STORAGE_KEY = "branch_v0_1_state";
+
 const state = {
-  nodes: {
-    root: {
-      id: "root",
-      parentId: null,
-      userText: null,
-      assistantText: null,
-      createdAt: Date.now(),
-    },
-  },
+  nodes: {},
   branches: [],
   currentBranchId: null,
   isSending: false,
   pendingAssistant: null,
+  pendingUser: null,
 };
 
 const elements = {
@@ -22,17 +17,52 @@ const elements = {
   userInput: document.getElementById("userInput"),
   sendBtn: document.getElementById("sendBtn"),
   branchBtn: document.getElementById("branchBtn"),
+  renameBtn: document.getElementById("renameBtn"),
+  deleteBtn: document.getElementById("deleteBtn"),
+  exportBtn: document.getElementById("exportBtn"),
+  importBtn: document.getElementById("importBtn"),
+  importFile: document.getElementById("importFile"),
   status: document.getElementById("status"),
   currentBranch: document.getElementById("currentBranch"),
 };
 
+function renderMarkdown(text) {
+  if (!window.marked) {
+    return text;
+  }
+  return window.marked.parse(text || "", {
+    breaks: true,
+    gfm: true,
+    headerIds: false,
+    mangle: false,
+  });
+}
+
 function init() {
-  const mainBranch = createBranch("Main", "root");
-  state.currentBranchId = mainBranch.id;
+  loadState();
+  if (!state.currentBranchId) {
+    state.nodes.root = {
+      id: "root",
+      parentId: null,
+      userText: null,
+      assistantText: null,
+      createdAt: Date.now(),
+    };
+    const mainBranch = createBranch("Main", "root", false);
+    setCurrentBranch(mainBranch.id, false);
+  }
   renderAll();
 
   elements.sendBtn.addEventListener("click", sendMessage);
   elements.branchBtn.addEventListener("click", createBranchFromCurrent);
+  elements.renameBtn.addEventListener("click", renameCurrentBranch);
+  elements.deleteBtn.addEventListener("click", deleteCurrentBranch);
+  elements.exportBtn.addEventListener("click", exportTree);
+  elements.importBtn.addEventListener("click", () =>
+    elements.importFile.click(),
+  );
+  elements.importFile.addEventListener("change", importTree);
+
   elements.userInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -41,14 +71,39 @@ function init() {
   });
 }
 
-function createBranch(name, headId) {
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return;
+    state.nodes = parsed.nodes || {};
+    state.branches = parsed.branches || [];
+    state.currentBranchId = parsed.currentBranchId || null;
+  } catch (err) {
+    console.warn("Failed to load saved state", err);
+  }
+}
+
+function saveState() {
+  const data = {
+    nodes: state.nodes,
+    branches: state.branches,
+    currentBranchId: state.currentBranchId,
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function createBranch(name, headId, autoNamePending = false) {
   const branch = {
     id: crypto.randomUUID(),
     name: name.trim(),
     headId,
     createdAt: Date.now(),
+    autoNamePending,
   };
   state.branches.push(branch);
+  saveState();
   return branch;
 }
 
@@ -56,11 +111,68 @@ function createBranchFromCurrent() {
   const current = getCurrentBranch();
   if (!current) return;
 
-  const name = prompt("Name your new branch:");
+  const nextIndex = state.branches.length + 1;
+  const newBranch = createBranch(`Branch ${nextIndex}`, current.headId, true);
+  setCurrentBranch(newBranch.id);
+}
+
+function renameCurrentBranch() {
+  const current = getCurrentBranch();
+  if (!current) return;
+
+  const name = prompt("Rename current branch:", current.name);
   if (!name || !name.trim()) return;
 
-  const newBranch = createBranch(name, current.headId);
-  state.currentBranchId = newBranch.id;
+  current.name = name.trim();
+  current.autoNamePending = false;
+  saveState();
+  renderAll();
+}
+
+function deleteCurrentBranch() {
+  const current = getCurrentBranch();
+  if (!current) return;
+
+  const confirmed = confirm(`Delete branch "${current.name}"?`);
+  if (!confirmed) return;
+
+  state.branches = state.branches.filter((branch) => branch.id !== current.id);
+
+  if (state.branches.length === 0) {
+    const mainBranch = createBranch("Main", "root", false);
+    setCurrentBranch(mainBranch.id);
+  } else {
+    setCurrentBranch(state.branches[0].id);
+  }
+
+  pruneOrphanNodes();
+  saveState();
+  renderAll();
+}
+
+function pruneOrphanNodes() {
+  const keep = new Set(["root"]);
+  for (const branch of state.branches) {
+    let cursor = branch.headId;
+    while (cursor && cursor !== "root") {
+      if (keep.has(cursor)) break;
+      keep.add(cursor);
+      const node = state.nodes[cursor];
+      if (!node) break;
+      cursor = node.parentId;
+    }
+  }
+
+  Object.keys(state.nodes).forEach((nodeId) => {
+    if (!keep.has(nodeId)) {
+      delete state.nodes[nodeId];
+    }
+  });
+}
+
+function setCurrentBranch(branchId, persist = true) {
+  state.currentBranchId = branchId;
+  if (persist) saveState();
   renderAll();
 }
 
@@ -90,12 +202,6 @@ function buildMessagesForBranch(branch) {
   return messages;
 }
 
-function snippet(text) {
-  if (!text) return "(empty)";
-  const trimmed = text.replace(/\s+/g, " ").trim();
-  return trimmed.length > 28 ? `${trimmed.slice(0, 28)}...` : trimmed;
-}
-
 function buildChildrenMap() {
   const map = {};
   Object.values(state.nodes).forEach((node) => {
@@ -104,7 +210,9 @@ function buildChildrenMap() {
     map[node.parentId].push(node.id);
   });
   Object.values(map).forEach((children) => {
-    children.sort((a, b) => state.nodes[a].createdAt - state.nodes[b].createdAt);
+    children.sort(
+      (a, b) => state.nodes[a].createdAt - state.nodes[b].createdAt,
+    );
   });
   return map;
 }
@@ -115,7 +223,7 @@ function buildTreeLines() {
 
   lines.push({
     prefix: "",
-    text: "root",
+    text: "\u25cf",
     nodeId: "root",
   });
 
@@ -130,11 +238,9 @@ function buildTreeLines() {
 
 function addNodeLine(nodeId, prefix, isLast, childrenMap, lines) {
   const connector = isLast ? "\u2514\u2500 " : "\u251c\u2500 ";
-  const node = state.nodes[nodeId];
-  const label = node ? `assistant: ${snippet(node.assistantText)}` : "assistant";
   lines.push({
     prefix: `${prefix}${connector}`,
-    text: label,
+    text: "\u25cf",
     nodeId,
   });
 
@@ -174,8 +280,7 @@ function renderTree() {
       }
       button.textContent = branch.name;
       button.addEventListener("click", () => {
-        state.currentBranchId = branch.id;
-        renderAll();
+        setCurrentBranch(branch.id);
       });
       row.appendChild(button);
     });
@@ -198,14 +303,21 @@ function renderChat() {
 
     const assistantBubble = document.createElement("div");
     assistantBubble.className = "message assistant";
-    assistantBubble.textContent = node.assistantText;
+    assistantBubble.innerHTML = renderMarkdown(node.assistantText);
     elements.chat.appendChild(assistantBubble);
   });
+
+  if (state.pendingUser) {
+    const pendingUser = document.createElement("div");
+    pendingUser.className = "message user pending";
+    pendingUser.textContent = state.pendingUser;
+    elements.chat.appendChild(pendingUser);
+  }
 
   if (state.pendingAssistant) {
     const pending = document.createElement("div");
     pending.className = "message assistant pending";
-    pending.textContent = state.pendingAssistant;
+    pending.innerHTML = renderMarkdown(state.pendingAssistant);
     elements.chat.appendChild(pending);
   }
 
@@ -233,6 +345,14 @@ function renderAll() {
   renderCurrentBranch();
 }
 
+function autoNameBranchFromPrompt(branch, userText) {
+  if (!branch.autoNamePending) return;
+  const trimmed = userText.replace(/\s+/g, " ").trim();
+  if (!trimmed) return;
+  branch.name = trimmed.length > 24 ? `${trimmed.slice(0, 24)}...` : trimmed;
+  branch.autoNamePending = false;
+}
+
 async function sendMessage() {
   if (state.isSending) return;
 
@@ -258,42 +378,180 @@ async function sendMessage() {
   }
 
   state.isSending = true;
-  state.pendingAssistant = "Thinking...";
+  state.pendingUser = userText;
+  state.pendingAssistant = "";
   elements.userInput.value = "";
   renderAll();
 
   const messages = buildMessagesForBranch(current);
   messages.push({ role: "user", content: userText });
 
-  try {
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ apiKey, model, messages }),
-    });
+  autoNameBranchFromPrompt(current, userText);
+  saveState();
 
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || "Request failed");
-    }
+  try {
+    const assistantText = await streamChat({ apiKey, model, messages });
 
     const nodeId = crypto.randomUUID();
     state.nodes[nodeId] = {
       id: nodeId,
       parentId: current.headId,
       userText,
-      assistantText: data.assistant || "(empty response)",
+      assistantText: assistantText || "(empty response)",
       createdAt: Date.now(),
     };
 
     current.headId = nodeId;
+    saveState();
   } catch (err) {
     alert(err.message || "Something went wrong");
   } finally {
     state.isSending = false;
     state.pendingAssistant = null;
+    state.pendingUser = null;
     renderAll();
   }
+}
+
+async function streamChat(payload) {
+  const response = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, stream: true }),
+  });
+
+  const contentType = response.headers.get("content-type") || "";
+  if (!response.ok && !contentType.includes("text/event-stream")) {
+    const data = await response.json();
+    throw new Error(data.error || "Request failed");
+  }
+
+  if (!contentType.includes("text/event-stream")) {
+    const data = await response.json();
+    return data.assistant;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let assistantText = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop();
+
+    for (const part of parts) {
+      const lines = part.split("\n");
+      let eventType = "message";
+      let dataLine = "";
+      for (const line of lines) {
+        if (line.startsWith("event:")) {
+          eventType = line.replace("event:", "").trim();
+        } else if (line.startsWith("data:")) {
+          dataLine = line.replace("data:", "").trim();
+        }
+      }
+
+      if (eventType === "error") {
+        try {
+          const errPayload = JSON.parse(dataLine);
+          throw new Error(errPayload.error || "Stream error");
+        } catch (err) {
+          throw new Error("Stream error");
+        }
+      }
+
+      if (dataLine === "[DONE]") {
+        return assistantText;
+      }
+
+      if (dataLine) {
+        try {
+          const payload = JSON.parse(dataLine);
+          if (payload.delta) {
+            assistantText += payload.delta;
+            state.pendingAssistant = assistantText;
+            renderChat();
+            renderStatus();
+          }
+        } catch (err) {
+          console.warn("Bad stream chunk", err);
+        }
+      }
+    }
+  }
+
+  return assistantText;
+}
+
+function exportTree() {
+  const data = {
+    nodes: state.nodes,
+    branches: state.branches,
+    currentBranchId: state.currentBranchId,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `branch-export-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function importTree(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      if (!parsed || typeof parsed !== "object") {
+        throw new Error("Invalid JSON file");
+      }
+
+      state.nodes = parsed.nodes || {};
+      state.branches = parsed.branches || [];
+      state.currentBranchId = parsed.currentBranchId || null;
+
+      if (!state.nodes.root) {
+        state.nodes.root = {
+          id: "root",
+          parentId: null,
+          userText: null,
+          assistantText: null,
+          createdAt: Date.now(),
+        };
+      }
+
+      if (!state.currentBranchId && state.branches.length > 0) {
+        state.currentBranchId = state.branches[0].id;
+      }
+
+      if (state.branches.length === 0) {
+        const mainBranch = createBranch("Main", "root", false);
+        state.currentBranchId = mainBranch.id;
+      }
+
+      pruneOrphanNodes();
+      saveState();
+      renderAll();
+    } catch (err) {
+      alert(err.message || "Failed to import");
+    } finally {
+      event.target.value = "";
+    }
+  };
+  reader.readAsText(file);
 }
 
 init();

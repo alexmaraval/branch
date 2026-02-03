@@ -1,8 +1,8 @@
 import json
 import os
 import sys
-import urllib.request
 import urllib.error
+import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 WEB_DIR = os.path.join(os.path.dirname(__file__), "web")
@@ -33,12 +33,16 @@ class BranchHandler(SimpleHTTPRequestHandler):
         api_key = data.get("apiKey")
         model = data.get("model")
         messages = data.get("messages")
+        stream = bool(data.get("stream"))
 
         if not api_key or not model or not messages:
             self._send_json({"error": "Missing apiKey, model, or messages"}, status=400)
             return
 
-        payload = json.dumps({"model": model, "messages": messages}).encode("utf-8")
+        payload_dict = {"model": model, "messages": messages}
+        if stream:
+            payload_dict["stream"] = True
+        payload = json.dumps(payload_dict).encode("utf-8")
         req = urllib.request.Request(
             API_URL,
             data=payload,
@@ -51,28 +55,72 @@ class BranchHandler(SimpleHTTPRequestHandler):
 
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
-                resp_body = resp.read().decode("utf-8")
-                resp_json = json.loads(resp_body)
+                if stream:
+                    self._stream_response(resp)
+                else:
+                    resp_body = resp.read().decode("utf-8")
+                    resp_json = json.loads(resp_body)
+                    assistant_text = resp_json["choices"][0]["message"]["content"]
+                    self._send_json({"assistant": assistant_text})
         except urllib.error.HTTPError as err:
+            message = "OpenAI API error"
             try:
                 err_body = err.read().decode("utf-8")
                 err_json = json.loads(err_body)
-                message = err_json.get("error", {}).get("message", "OpenAI API error")
+                message = err_json.get("error", {}).get("message", message)
             except (json.JSONDecodeError, UnicodeDecodeError):
-                message = "OpenAI API error"
-            self._send_json({"error": message}, status=err.code)
-            return
+                pass
+            if stream:
+                self._send_sse_error(message)
+            else:
+                self._send_json({"error": message}, status=err.code)
         except Exception as err:
-            self._send_json({"error": f"Request failed: {err}"}, status=500)
-            return
+            message = f"Request failed: {err}"
+            if stream:
+                self._send_sse_error(message)
+            else:
+                self._send_json({"error": message}, status=500)
 
-        try:
-            assistant_text = resp_json["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError):
-            self._send_json({"error": "Unexpected API response"}, status=500)
-            return
+    def _stream_response(self, resp):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.end_headers()
 
-        self._send_json({"assistant": assistant_text})
+        for raw_line in resp:
+            try:
+                line = raw_line.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+
+            if not line.startswith("data: "):
+                continue
+
+            data = line.replace("data: ", "", 1).strip()
+            if data == "[DONE]":
+                self._send_sse_data("[DONE]")
+                break
+
+            try:
+                payload = json.loads(data)
+                delta = payload["choices"][0].get("delta", {}).get("content")
+            except (json.JSONDecodeError, KeyError, IndexError, TypeError):
+                delta = None
+
+            if delta:
+                self._send_sse_data(json.dumps({"delta": delta}))
+
+    def _send_sse_data(self, data):
+        message = f"data: {data}\n\n".encode()
+        self.wfile.write(message)
+        self.wfile.flush()
+
+    def _send_sse_error(self, message):
+        payload = json.dumps({"error": message})
+        event = f"event: error\ndata: {payload}\n\n".encode()
+        self.wfile.write(event)
+        self.wfile.flush()
 
     def _send_json(self, data, status=200):
         response = json.dumps(data).encode("utf-8")

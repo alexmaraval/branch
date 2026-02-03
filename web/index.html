@@ -17,30 +17,53 @@
           <div id="currentBranch" class="current-branch"></div>
         </div>
         <div id="tree" class="tree"></div>
+        <div class="sidebar-actions">
+          <button id="exportBtn" class="btn ghost">Export JSON</button>
+          <button id="importBtn" class="btn ghost">Import JSON</button>
+          <input id="importFile" type="file" accept="application/json" hidden />
+        </div>
       </aside>
 
       <main class="main">
         <header class="topbar">
           <div class="field">
             <label for="apiKey">API Key</label>
-            <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+            <input
+              id="apiKey"
+              type="password"
+              placeholder="sk-..."
+              autocomplete="off"
+            />
           </div>
           <div class="field">
             <label for="model">Model</label>
-            <input id="model" list="model-list" placeholder="gpt-4o-mini" value="gpt-4o-mini" />
+            <input
+              id="model"
+              list="model-list"
+              placeholder="gpt-4o-mini"
+              value="gpt-4o-mini"
+            />
             <datalist id="model-list">
               <option value="gpt-4o-mini"></option>
               <option value="gpt-4.1-mini"></option>
               <option value="gpt-4.1"></option>
             </datalist>
           </div>
-          <button id="branchBtn" class="btn">Branch</button>
+          <div class="actions">
+            <button id="renameBtn" class="btn ghost">Rename</button>
+            <button id="deleteBtn" class="btn ghost">Delete</button>
+            <button id="branchBtn" class="btn">Branch</button>
+          </div>
         </header>
 
         <section id="chat" class="chat"></section>
 
         <footer class="composer">
-          <textarea id="userInput" rows="3" placeholder="Type your message..."></textarea>
+          <textarea
+            id="userInput"
+            rows="3"
+            placeholder="Type your message..."
+          ></textarea>
           <div class="composer-actions">
             <div id="status" class="status"></div>
             <button id="sendBtn" class="btn primary">Send</button>
@@ -50,5 +73,6 @@
     </div>
 
     <script src="app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   </body>
 </html>
