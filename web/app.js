@@ -8,6 +8,8 @@ const state = {
   pendingAssistant: null,
   pendingUser: null,
   collapsed: new Set(),
+  sidebarWidth: 280,
+  sidebarCollapsed: false,
 };
 
 const elements = {
@@ -24,6 +26,10 @@ const elements = {
   importFile: document.getElementById("importFile"),
   status: document.getElementById("status"),
   currentBranch: document.getElementById("currentBranch"),
+  sidebar: document.querySelector(".sidebar"),
+  sidebarResizer: document.getElementById("sidebarResizer"),
+  sidebarToggle: document.getElementById("sidebarToggle"),
+  app: document.getElementById("app"),
 };
 
 function renderMarkdown(text) {
@@ -68,6 +74,9 @@ function init() {
       sendMessage();
     }
   });
+
+  initSidebarResizer();
+  applySidebarState();
 }
 
 function loadState() {
@@ -88,6 +97,8 @@ function loadState() {
     inferBranchParents();
     state.currentBranchId = parsed.currentBranchId || null;
     state.collapsed = new Set(parsed.collapsed || []);
+    state.sidebarWidth = parsed.sidebarWidth || 280;
+    state.sidebarCollapsed = !!parsed.sidebarCollapsed;
   } catch (err) {
     console.warn("Failed to load saved state", err);
   }
@@ -99,6 +110,8 @@ function saveState() {
     branches: state.branches,
     currentBranchId: state.currentBranchId,
     collapsed: Array.from(state.collapsed),
+    sidebarWidth: state.sidebarWidth,
+    sidebarCollapsed: state.sidebarCollapsed,
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
@@ -491,6 +504,76 @@ function renderAll() {
   renderChat();
   renderStatus();
   renderCurrentBranch();
+}
+
+function initSidebarResizer() {
+  if (!elements.sidebarResizer || !elements.app) return;
+
+  let dragging = false;
+  let startX = 0;
+  let startWidth = state.sidebarWidth;
+
+  const onMouseMove = (e) => {
+    if (!dragging) return;
+    const delta = e.clientX - startX;
+    const newWidth = Math.min(420, Math.max(220, startWidth + delta));
+    state.sidebarWidth = newWidth;
+    applySidebarState(false);
+  };
+
+  const onMouseUp = () => {
+    if (!dragging) return;
+    dragging = false;
+    saveState();
+    window.removeEventListener("mousemove", onMouseMove);
+    window.removeEventListener("mouseup", onMouseUp);
+  };
+
+  elements.sidebarResizer.addEventListener("mousedown", (e) => {
+    dragging = true;
+    startX = e.clientX;
+    startWidth = state.sidebarWidth;
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  });
+
+  // Reset width on double click
+  elements.sidebarResizer.addEventListener("dblclick", () => {
+    state.sidebarWidth = 280;
+    state.sidebarCollapsed = false;
+    applySidebarState();
+    saveState();
+  });
+
+  if (elements.sidebarToggle) {
+    elements.sidebarToggle.addEventListener("click", () => {
+      state.sidebarCollapsed = !state.sidebarCollapsed;
+      applySidebarState();
+      saveState();
+    });
+  }
+}
+
+function applySidebarState(persist = true) {
+  if (!elements.app || !elements.sidebar) return;
+  if (state.sidebarCollapsed) {
+    elements.app.classList.add("app-collapsed");
+    elements.sidebar.classList.add("sidebar-collapsed");
+    elements.app.style.setProperty("--sidebar-width", "40px");
+    if (elements.sidebarResizer) {
+      elements.sidebarResizer.style.pointerEvents = "none";
+      elements.sidebarResizer.style.opacity = "0.4";
+    }
+  } else {
+    elements.app.classList.remove("app-collapsed");
+    elements.sidebar.classList.remove("sidebar-collapsed");
+    elements.app.style.setProperty("--sidebar-width", `${state.sidebarWidth}px`);
+    if (elements.sidebarResizer) {
+      elements.sidebarResizer.style.pointerEvents = "auto";
+      elements.sidebarResizer.style.opacity = "1";
+    }
+  }
+  if (persist) saveState();
 }
 
 function autoNameBranchFromPrompt(branch, userText, force = false) {

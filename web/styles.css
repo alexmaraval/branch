@@ -25,10 +25,15 @@ body {
 }
 
 #app {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(220px, 320px) 1fr;
+  grid-template-columns: var(--sidebar-width, 280px) 6px 1fr;
   min-height: 100vh;
   height: 100vh;
+}
+
+.app-collapsed {
+  grid-template-columns: 40px 6px 1fr !important;
 }
 
 .sidebar {
@@ -48,6 +53,64 @@ body {
   height: 100vh;
   position: sticky;
   top: 0;
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.sidebar-collapsed {
+  padding: 10px 6px;
+  gap: 0;
+  overflow: hidden;
+}
+
+.sidebar-collapsed > *:not(.sidebar-header) {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar-header > *:not(.sidebar-toggle) {
+  display: none;
+}
+
+.sidebar-resizer {
+  width: 6px;
+  cursor: col-resize;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.04),
+    rgba(0, 0, 0, 0.02)
+  );
+  border-right: 1px solid var(--border);
+  transition: background 0.15s ease;
+  height: 100vh;
+  grid-column: 2;
+  grid-row: 1;
+  position: relative;
+}
+
+.sidebar-resizer:hover {
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.sidebar-toggle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #fff;
+  box-shadow: var(--shadow);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 13px;
+  z-index: 5;
+}
+
+.sidebar-header {
+  position: relative;
 }
 
 .sidebar-header {

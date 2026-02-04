@@ -14,6 +14,13 @@
             <div class="brand">branch</div>
             <div class="subtitle">Chat tree explorer</div>
           </div>
+          <button
+            id="sidebarToggle"
+            class="sidebar-toggle"
+            aria-label="Toggle sidebar"
+          >
+            ☰
+          </button>
         </div>
         <details class="sidebar-settings">
           <summary>LLM Settings</summary>
@@ -50,6 +57,7 @@
           <input id="importFile" type="file" accept="application/json" hidden />
         </div>
       </aside>
+      <div id="sidebarResizer" class="sidebar-resizer" aria-hidden="true"></div>
 
       <main class="main">
         <header class="topbar"></header>
