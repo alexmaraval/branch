@@ -419,6 +419,37 @@ function autoNameBranchFromPrompt(branch, userText, force = false) {
   branch.autoNamePending = false;
 }
 
+async function generateBranchName({ apiKey, model, userText, assistantText }) {
+  const response = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      apiKey,
+      model,
+      stream: false,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You create short branch names. Return a 2-4 word title in Title Case. Respond with only the name.",
+        },
+        {
+          role: "user",
+          content: `User message:\n${userText}\n\nAssistant reply:\n${assistantText}`,
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || "Name generation failed");
+  }
+
+  const data = await response.json();
+  return String(data.assistant || "").trim();
+}
+
 async function sendMessage() {
   if (state.isSending) return;
 
@@ -474,7 +505,24 @@ async function sendMessage() {
     };
 
     if (shouldAutoName) {
-      autoNameBranchFromPrompt(current, userText, true);
+      try {
+        const generated = await generateBranchName({
+          apiKey,
+          model,
+          userText,
+          assistantText,
+        });
+        if (generated) {
+          current.name = generated;
+        } else {
+          autoNameBranchFromPrompt(current, userText, true);
+        }
+      } catch (err) {
+        console.warn("Failed to auto-name branch", err);
+        autoNameBranchFromPrompt(current, userText, true);
+      } finally {
+        current.autoNamePending = false;
+      }
     }
     current.headId = nodeId;
     saveState();
