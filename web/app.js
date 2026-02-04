@@ -101,6 +101,7 @@ function createBranch(name, headId, autoNamePending = false) {
     headId,
     createdAt: Date.now(),
     autoNamePending,
+    locked: false,
   };
   state.branches.push(branch);
   saveState();
@@ -113,6 +114,8 @@ function createBranchFromCurrent() {
 
   const nextIndex = state.branches.length + 1;
   const newBranch = createBranch(`Branch ${nextIndex}`, current.headId, true);
+  current.locked = true;
+  saveState();
   setCurrentBranch(newBranch.id);
 }
 
@@ -148,6 +151,15 @@ function deleteCurrentBranch() {
   pruneOrphanNodes();
   saveState();
   renderAll();
+}
+
+function createContinuationBranch(baseBranch) {
+  const baseName = baseBranch.name.replace(/\s0\.\d+$/, "");
+  const siblings = state.branches.filter((branch) =>
+    branch.name.startsWith(`${baseName} 0.`),
+  );
+  const nextIndex = siblings.length + 1;
+  return createBranch(`${baseName} 0.${nextIndex}`, baseBranch.headId, false);
 }
 
 function pruneOrphanNodes() {
@@ -255,6 +267,11 @@ function addNodeLine(nodeId, prefix, isLast, childrenMap, lines) {
 function renderTree() {
   elements.tree.innerHTML = "";
   const lines = buildTreeLines();
+  const current = getCurrentBranch();
+  const currentPath = new Set(["root"]);
+  if (current) {
+    buildPathToNode(current.headId).forEach((node) => currentPath.add(node.id));
+  }
 
   const branchesByNode = state.branches.reduce((acc, branch) => {
     acc[branch.headId] = acc[branch.headId] || [];
@@ -268,7 +285,20 @@ function renderTree() {
 
     const label = document.createElement("span");
     label.className = "tree-label";
-    label.textContent = `${line.prefix}${line.text}`;
+    label.textContent = line.prefix;
+    const dot = document.createElement("span");
+    dot.className = "tree-dot";
+    if (currentPath.has(line.nodeId)) {
+      dot.classList.add("active");
+    }
+    dot.textContent = line.text;
+    const node = state.nodes[line.nodeId];
+    if (node && node.assistantText) {
+      dot.title = node.assistantText.slice(0, 200);
+    } else if (line.nodeId === "root") {
+      dot.title = "root";
+    }
+    label.appendChild(dot);
     row.appendChild(label);
 
     const branches = branchesByNode[line.nodeId] || [];
@@ -359,7 +389,7 @@ async function sendMessage() {
   const apiKey = elements.apiKey.value.trim();
   const model = elements.model.value.trim();
   const userText = elements.userInput.value.trim();
-  const current = getCurrentBranch();
+  let current = getCurrentBranch();
 
   if (!apiKey) {
     alert("Please enter your API key.");
@@ -375,6 +405,12 @@ async function sendMessage() {
   if (!current) {
     alert("No branch selected.");
     return;
+  }
+
+  if (current.locked) {
+    const continuation = createContinuationBranch(current);
+    current = continuation;
+    setCurrentBranch(current.id);
   }
 
   state.isSending = true;
