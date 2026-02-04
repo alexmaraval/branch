@@ -17,7 +17,6 @@ const elements = {
   userInput: document.getElementById("userInput"),
   sendBtn: document.getElementById("sendBtn"),
   branchBtn: document.getElementById("branchBtn"),
-  renameBtn: document.getElementById("renameBtn"),
   deleteBtn: document.getElementById("deleteBtn"),
   exportBtn: document.getElementById("exportBtn"),
   importBtn: document.getElementById("importBtn"),
@@ -55,7 +54,6 @@ function init() {
 
   elements.sendBtn.addEventListener("click", sendMessage);
   elements.branchBtn.addEventListener("click", createBranchFromCurrent);
-  elements.renameBtn.addEventListener("click", renameCurrentBranch);
   elements.deleteBtn.addEventListener("click", deleteCurrentBranch);
   elements.exportBtn.addEventListener("click", exportTree);
   elements.importBtn.addEventListener("click", () =>
@@ -125,15 +123,12 @@ function createBranchFromCurrent() {
   setCurrentBranch(newBranch.id);
 }
 
-function renameCurrentBranch() {
-  const current = getCurrentBranch();
-  if (!current) return;
-
-  const name = prompt("Rename current branch:", current.name);
+function renameBranch(branch) {
+  if (!branch) return;
+  const name = prompt("Rename branch:", branch.name);
   if (!name || !name.trim()) return;
-
-  current.name = name.trim();
-  current.autoNamePending = false;
+  branch.name = name.trim();
+  branch.autoNamePending = false;
   saveState();
   renderAll();
 }
@@ -309,6 +304,9 @@ function renderTree() {
 
     const branches = branchesByNode[line.nodeId] || [];
     branches.forEach((branch) => {
+      const wrap = document.createElement("div");
+      wrap.className = "tree-branch-wrap";
+
       const button = document.createElement("button");
       button.className = "tree-branch";
       if (branch.id === state.currentBranchId) {
@@ -318,7 +316,26 @@ function renderTree() {
       button.addEventListener("click", () => {
         setCurrentBranch(branch.id);
       });
-      row.appendChild(button);
+
+      const editBtn = document.createElement("button");
+      editBtn.className = "tree-branch-edit";
+      editBtn.setAttribute("aria-label", `Rename ${branch.name}`);
+      editBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="edit-icon">
+          <path
+            d="M4 17.5V20h2.5l10-10-2.5-2.5-10 10zm13.1-11.6 1.9 1.9a1 1 0 0 0 1.4 0l1-1a1 1 0 0 0 0-1.4l-1.9-1.9a1 1 0 0 0-1.4 0l-1 1a1 1 0 0 0 0 1.4z"
+            fill="currentColor"
+          />
+        </svg>
+      `;
+      editBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        renameBranch(branch);
+      });
+
+      wrap.appendChild(button);
+      wrap.appendChild(editBtn);
+      row.appendChild(wrap);
     });
 
     elements.tree.appendChild(row);
@@ -371,7 +388,20 @@ function renderStatus() {
 function renderCurrentBranch() {
   const current = getCurrentBranch();
   if (!current) return;
-  elements.currentBranch.textContent = `Current branch: ${current.name}`;
+  const depth = buildPathToNode(current.headId).length;
+  elements.currentBranch.innerHTML = `
+    <span class="branch-pill">
+      <svg viewBox="0 0 16 16" aria-hidden="true" class="branch-icon">
+        <path
+          fill-rule="evenodd"
+          d="M11.75 2.5a.75.75 0 100 1.5.75.75 0 000-1.5zm-2.25.75a2.25 2.25 0 113 2.122V6A2.5 2.5 0 0110 8.5H6a1 1 0 00-1 1v1.128a2.251 2.251 0 11-1.5 0V5.372a2.25 2.25 0 111.5 0v1.836A2.492 2.492 0 016 7h4a1 1 0 001-1v-.628A2.25 2.25 0 019.5 3.25zM4.25 12a.75.75 0 100 1.5.75.75 0 000-1.5zM3.5 3.25a.75.75 0 111.5 0 .75.75 0 01-1.5 0z"
+          fill="currentColor"
+        />
+      </svg>
+      <span>${current.name}</span>
+      <span class="branch-depth">depth-${depth}</span>
+    </span>
+  `;
 }
 
 function renderAll() {

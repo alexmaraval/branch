@@ -14,7 +14,6 @@
             <div class="brand">branch</div>
             <div class="subtitle">Chat tree explorer</div>
           </div>
-          <div id="currentBranch" class="current-branch"></div>
         </div>
         <details class="sidebar-settings">
           <summary>LLM Settings</summary>
@@ -42,11 +41,6 @@
             </datalist>
           </div>
         </details>
-        <div class="sidebar-tools">
-          <button id="renameBtn" class="btn accent subtle">Rename</button>
-          <button id="deleteBtn" class="btn outline">Delete</button>
-          <button id="branchBtn" class="btn accent">Branch</button>
-        </div>
         <div class="tree-wrap">
           <div id="tree" class="tree"></div>
         </div>
@@ -63,21 +57,56 @@
         <section id="chat" class="chat"></section>
 
         <footer class="composer">
-          <textarea
-            id="userInput"
-            rows="3"
-            placeholder="Type your message..."
-          ></textarea>
-          <button id="sendBtn" class="send-fab" aria-label="Send">
-            <svg viewBox="0 0 24 24" aria-hidden="true" class="send-icon">
-              <path
-                d="M12 4l6.5 6.5-1.4 1.4L13 7.8V20h-2V7.8l-4.1 4.1-1.4-1.4L12 4z"
-                fill="currentColor"
-              />
-            </svg>
-          </button>
-          <div class="composer-actions">
-            <div id="status" class="status"></div>
+          <div class="composer-main">
+            <div class="composer-input-wrap">
+              <textarea
+                id="userInput"
+                rows="3"
+                placeholder="Type your message..."
+              ></textarea>
+              <div class="composer-actions" aria-label="Chat actions">
+                <button
+                  id="branchBtn"
+                  class="round-action branch"
+                  aria-label="Branch chat"
+                >
+                  <svg viewBox="0 0 16 16" aria-hidden="true" class="action-icon">
+                    <path
+                      fill-rule="evenodd"
+                      d="M11.75 2.5a.75.75 0 100 1.5.75.75 0 000-1.5zm-2.25.75a2.25 2.25 0 113 2.122V6A2.5 2.5 0 0110 8.5H6a1 1 0 00-1 1v1.128a2.251 2.251 0 11-1.5 0V5.372a2.25 2.25 0 111.5 0v1.836A2.492 2.492 0 016 7h4a1 1 0 001-1v-.628A2.25 2.25 0 019.5 3.25zM4.25 12a.75.75 0 100 1.5.75.75 0 000-1.5zM3.5 3.25a.75.75 0 111.5 0 .75.75 0 01-1.5 0z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </button>
+                <button
+                  id="deleteBtn"
+                  class="round-action delete"
+                  aria-label="Delete branch"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true" class="action-icon">
+                    <path
+                      d="M7 7l10 10M17 7L7 17"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.4"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </button>
+                <button id="sendBtn" class="round-action send" aria-label="Send">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" class="action-icon">
+                    <path
+                      d="M12 4l6.5 6.5-1.4 1.4L13 7.8V20h-2V7.8l-4.1 4.1-1.4-1.4L12 4z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="composer-meta">
+              <div id="currentBranch" class="current-branch inline"></div>
+              <div id="status" class="status"></div>
+            </div>
           </div>
         </footer>
       </main>
