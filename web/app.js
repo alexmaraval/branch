@@ -7,6 +7,7 @@ const state = {
   isSending: false,
   pendingAssistant: null,
   pendingUser: null,
+  collapsed: new Set(),
 };
 
 const elements = {
@@ -86,6 +87,7 @@ function loadState() {
     }));
     inferBranchParents();
     state.currentBranchId = parsed.currentBranchId || null;
+    state.collapsed = new Set(parsed.collapsed || []);
   } catch (err) {
     console.warn("Failed to load saved state", err);
   }
@@ -96,6 +98,7 @@ function saveState() {
     nodes: state.nodes,
     branches: state.branches,
     currentBranchId: state.currentBranchId,
+    collapsed: Array.from(state.collapsed),
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
@@ -254,6 +257,8 @@ function buildBranchLines() {
     prefix: "",
     text: "\u25cf",
     isRoot: true,
+    hasChildren: (byParent.root || []).length > 0,
+    collapsed: false,
   });
 
   const roots = byParent.root || [];
@@ -267,18 +272,24 @@ function buildBranchLines() {
 
 function addBranchLine(branch, prefix, isLast, byParent, lines) {
   const connector = isLast ? "\u2514\u2500 " : "\u251c\u2500 ";
+  const children = byParent[branch.id] || [];
+  const collapsed = state.collapsed.has(branch.id);
+  const hasChildren = children.length > 0;
   lines.push({
     prefix: `${prefix}${connector}`,
-    text: "\u25cf",
+    text: hasChildren ? (collapsed ? "\u25b8" : "\u25be") : "\u25cf",
     branch,
+    hasChildren,
+    collapsed,
   });
 
   const childPrefix = `${prefix}${isLast ? "   " : "\u2502  "}`;
-  const children = byParent[branch.id] || [];
-  children.forEach((child, index) => {
-    const childLast = index === children.length - 1;
-    addBranchLine(child, childPrefix, childLast, byParent, lines);
-  });
+  if (!collapsed) {
+    children.forEach((child, index) => {
+      const childLast = index === children.length - 1;
+      addBranchLine(child, childPrefix, childLast, byParent, lines);
+    });
+  }
 }
 
 function renderTree() {
@@ -305,7 +316,14 @@ function renderTree() {
       dot.classList.add("active");
     }
     dot.textContent = line.text;
-    if (line.isRoot) {
+    if (line.hasChildren && line.branch) {
+      dot.classList.add("collapsible");
+      dot.title = line.collapsed ? "Expand branch" : "Collapse branch";
+      dot.addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleCollapse(line.branch.id);
+      });
+    } else if (line.isRoot) {
       dot.title = "root";
     } else if (line.branch) {
       dot.title = line.branch.name;
@@ -384,6 +402,16 @@ function inferBranchParents() {
   });
 }
 
+function toggleCollapse(branchId) {
+  if (state.collapsed.has(branchId)) {
+    state.collapsed.delete(branchId);
+  } else {
+    state.collapsed.add(branchId);
+  }
+  saveState();
+  renderTree();
+}
+
 function renderChat() {
   elements.chat.innerHTML = "";
   const current = getCurrentBranch();
@@ -430,7 +458,7 @@ function renderStatus() {
 function renderCurrentBranch() {
   const current = getCurrentBranch();
   if (!current) return;
-  const depth = buildPathToNode(current.headId).length;
+  const depth = getBranchDepth(current);
   elements.currentBranch.innerHTML = `
     <span class="branch-pill">
       <svg viewBox="0 0 16 16" aria-hidden="true" class="branch-icon">
@@ -444,6 +472,18 @@ function renderCurrentBranch() {
       <span class="branch-depth">depth-${depth}</span>
     </span>
   `;
+}
+
+function getBranchDepth(branch) {
+  let depth = 0;
+  const seen = new Set();
+  let cursor = branch;
+  while (cursor && !seen.has(cursor.id)) {
+    seen.add(cursor.id);
+    cursor = state.branches.find((b) => b.id === cursor.parentBranchId);
+    if (cursor) depth += 1;
+  }
+  return depth;
 }
 
 function renderAll() {

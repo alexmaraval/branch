@@ -131,10 +131,24 @@ body {
 
 .tree-dot {
   color: #c1b3a3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
 }
 
 .tree-dot.active {
   color: var(--accent);
+}
+
+.tree-dot.collapsible {
+  cursor: pointer;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.tree-dot.collapsible:hover {
+  color: var(--forest);
+  transform: translateX(1px);
 }
 
 .tree-branch {
