@@ -78,7 +78,13 @@ function loadState() {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return;
     state.nodes = parsed.nodes || {};
-    state.branches = parsed.branches || [];
+    state.branches = (parsed.branches || []).map((branch) => ({
+      ...branch,
+      autoNamePending:
+        typeof branch.autoNamePending === "boolean"
+          ? branch.autoNamePending
+          : isPlaceholderBranchName(branch.name),
+    }));
     state.currentBranchId = parsed.currentBranchId || null;
   } catch (err) {
     console.warn("Failed to load saved state", err);
@@ -375,8 +381,8 @@ function renderAll() {
   renderCurrentBranch();
 }
 
-function autoNameBranchFromPrompt(branch, userText) {
-  if (!branch.autoNamePending) return;
+function autoNameBranchFromPrompt(branch, userText, force = false) {
+  if (!branch.autoNamePending && !force) return;
   const trimmed = userText.replace(/\s+/g, " ").trim();
   if (!trimmed) return;
   branch.name = trimmed.length > 24 ? `${trimmed.slice(0, 24)}...` : trimmed;
@@ -422,8 +428,8 @@ async function sendMessage() {
   const messages = buildMessagesForBranch(current);
   messages.push({ role: "user", content: userText });
 
-  autoNameBranchFromPrompt(current, userText);
-  saveState();
+  const shouldAutoName =
+    current.autoNamePending || isPlaceholderBranchName(current.name);
 
   try {
     const assistantText = await streamChat({ apiKey, model, messages });
@@ -437,10 +443,13 @@ async function sendMessage() {
       createdAt: Date.now(),
     };
 
+    if (shouldAutoName) {
+      autoNameBranchFromPrompt(current, userText, true);
+    }
     current.headId = nodeId;
     saveState();
   } catch (err) {
-    alert(err.message || "Something went wrong");
+    alert(normalizeSendError(err));
   } finally {
     state.isSending = false;
     state.pendingAssistant = null;
@@ -522,6 +531,19 @@ async function streamChat(payload) {
   }
 
   return assistantText;
+}
+
+function normalizeSendError(err) {
+  if (!err) return "Something went wrong";
+  const message = String(err.message || err);
+  if (message === "Load failed" || message === "Failed to fetch") {
+    return "Network error: could not reach /api/chat. Is the server running?";
+  }
+  return message;
+}
+
+function isPlaceholderBranchName(name) {
+  return /^Branch\s+\d+$/.test(name || "");
 }
 
 function exportTree() {
