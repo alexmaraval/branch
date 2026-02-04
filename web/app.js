@@ -78,11 +78,13 @@ function loadState() {
     state.nodes = parsed.nodes || {};
     state.branches = (parsed.branches || []).map((branch) => ({
       ...branch,
+      parentBranchId: branch.parentBranchId || null,
       autoNamePending:
         typeof branch.autoNamePending === "boolean"
           ? branch.autoNamePending
           : isPlaceholderBranchName(branch.name),
     }));
+    inferBranchParents();
     state.currentBranchId = parsed.currentBranchId || null;
   } catch (err) {
     console.warn("Failed to load saved state", err);
@@ -98,7 +100,16 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
-function createBranch(name, headId, autoNamePending = false) {
+function createBranch(
+  name,
+  headId,
+  autoNamePending = false,
+  parentBranchId = null,
+) {
+  if (!parentBranchId) {
+    const current = getCurrentBranch();
+    if (current) parentBranchId = current.id;
+  }
   const branch = {
     id: crypto.randomUUID(),
     name: name.trim(),
@@ -106,6 +117,7 @@ function createBranch(name, headId, autoNamePending = false) {
     createdAt: Date.now(),
     autoNamePending,
     locked: false,
+    parentBranchId,
   };
   state.branches.push(branch);
   saveState();
@@ -117,7 +129,12 @@ function createBranchFromCurrent() {
   if (!current) return;
 
   const nextIndex = state.branches.length + 1;
-  const newBranch = createBranch(`Branch ${nextIndex}`, current.headId, true);
+  const newBranch = createBranch(
+    `Branch ${nextIndex}`,
+    current.headId,
+    true,
+    current.id,
+  );
   current.locked = true;
   saveState();
   setCurrentBranch(newBranch.id);
@@ -160,7 +177,13 @@ function createContinuationBranch(baseBranch) {
     branch.name.startsWith(`${baseName} 0.`),
   );
   const nextIndex = siblings.length + 1;
-  return createBranch(`${baseName} 0.${nextIndex}`, baseBranch.headId, false);
+  const created = createBranch(
+    `${baseName} 0.${nextIndex}`,
+    baseBranch.headId,
+    false,
+    baseBranch.id,
+  );
+  return created;
 }
 
 function pruneOrphanNodes() {
@@ -215,70 +238,59 @@ function buildMessagesForBranch(branch) {
   return messages;
 }
 
-function buildChildrenMap() {
-  const map = {};
-  Object.values(state.nodes).forEach((node) => {
-    if (!node.parentId) return;
-    if (!map[node.parentId]) map[node.parentId] = [];
-    map[node.parentId].push(node.id);
-  });
-  Object.values(map).forEach((children) => {
-    children.sort(
-      (a, b) => state.nodes[a].createdAt - state.nodes[b].createdAt,
-    );
-  });
-  return map;
-}
-
-function buildTreeLines() {
+function buildBranchLines() {
   const lines = [];
-  const childrenMap = buildChildrenMap();
+  const byParent = {};
+  state.branches.forEach((branch) => {
+    const key = branch.parentBranchId || "root";
+    if (!byParent[key]) byParent[key] = [];
+    byParent[key].push(branch);
+  });
+  Object.values(byParent).forEach((children) => {
+    children.sort((a, b) => a.createdAt - b.createdAt);
+  });
 
   lines.push({
     prefix: "",
     text: "\u25cf",
-    nodeId: "root",
+    isRoot: true,
   });
 
-  const rootChildren = childrenMap.root || [];
-  rootChildren.forEach((childId, index) => {
-    const isLast = index === rootChildren.length - 1;
-    addNodeLine(childId, "", isLast, childrenMap, lines);
+  const roots = byParent.root || [];
+  roots.forEach((branch, index) => {
+    const isLast = index === roots.length - 1;
+    addBranchLine(branch, "", isLast, byParent, lines);
   });
 
   return lines;
 }
 
-function addNodeLine(nodeId, prefix, isLast, childrenMap, lines) {
+function addBranchLine(branch, prefix, isLast, byParent, lines) {
   const connector = isLast ? "\u2514\u2500 " : "\u251c\u2500 ";
   lines.push({
     prefix: `${prefix}${connector}`,
     text: "\u25cf",
-    nodeId,
+    branch,
   });
 
   const childPrefix = `${prefix}${isLast ? "   " : "\u2502  "}`;
-  const children = childrenMap[nodeId] || [];
-  children.forEach((childId, index) => {
+  const children = byParent[branch.id] || [];
+  children.forEach((child, index) => {
     const childLast = index === children.length - 1;
-    addNodeLine(childId, childPrefix, childLast, childrenMap, lines);
+    addBranchLine(child, childPrefix, childLast, byParent, lines);
   });
 }
 
 function renderTree() {
   elements.tree.innerHTML = "";
-  const lines = buildTreeLines();
+  const lines = buildBranchLines();
   const current = getCurrentBranch();
-  const currentPath = new Set(["root"]);
-  if (current) {
-    buildPathToNode(current.headId).forEach((node) => currentPath.add(node.id));
+  const activeBranches = new Set();
+  let cursor = current;
+  while (cursor) {
+    activeBranches.add(cursor.id);
+    cursor = state.branches.find((b) => b.id === cursor.parentBranchId);
   }
-
-  const branchesByNode = state.branches.reduce((acc, branch) => {
-    acc[branch.headId] = acc[branch.headId] || [];
-    acc[branch.headId].push(branch);
-    return acc;
-  }, {});
 
   lines.forEach((line) => {
     const row = document.createElement("div");
@@ -289,21 +301,20 @@ function renderTree() {
     label.textContent = line.prefix;
     const dot = document.createElement("span");
     dot.className = "tree-dot";
-    if (currentPath.has(line.nodeId)) {
+    if (line.branch && activeBranches.has(line.branch.id)) {
       dot.classList.add("active");
     }
     dot.textContent = line.text;
-    const node = state.nodes[line.nodeId];
-    if (node && node.assistantText) {
-      dot.title = node.assistantText.slice(0, 200);
-    } else if (line.nodeId === "root") {
+    if (line.isRoot) {
       dot.title = "root";
+    } else if (line.branch) {
+      dot.title = line.branch.name;
     }
     label.appendChild(dot);
     row.appendChild(label);
 
-    const branches = branchesByNode[line.nodeId] || [];
-    branches.forEach((branch) => {
+    if (line.branch) {
+      const branch = line.branch;
       const wrap = document.createElement("div");
       wrap.className = "tree-branch-wrap";
 
@@ -336,9 +347,40 @@ function renderTree() {
       wrap.appendChild(button);
       wrap.appendChild(editBtn);
       row.appendChild(wrap);
-    });
+    }
 
     elements.tree.appendChild(row);
+  });
+}
+
+function inferBranchParents() {
+  if (!state.branches.length) return;
+  // Determine root as earliest created branch (usually Main)
+  const sortedByTime = [...state.branches].sort(
+    (a, b) => a.createdAt - b.createdAt,
+  );
+  const rootBranchId = sortedByTime[0].id;
+
+  // Index branches by headId for quick lookup
+  const branchesByHead = {};
+  state.branches.forEach((b) => {
+    if (!branchesByHead[b.headId]) branchesByHead[b.headId] = [];
+    branchesByHead[b.headId].push(b);
+  });
+  Object.values(branchesByHead).forEach((list) =>
+    list.sort((a, b) => a.createdAt - b.createdAt),
+  );
+
+  state.branches.forEach((branch) => {
+    if (branch.parentBranchId || branch.id === rootBranchId) return;
+
+    const candidates = (branchesByHead[branch.headId] || []).filter(
+      (b) => b.id !== branch.id && b.createdAt <= branch.createdAt,
+    );
+    const parent =
+      candidates.length > 0 ? candidates[candidates.length - 1] : null;
+
+    branch.parentBranchId = parent ? parent.id : rootBranchId;
   });
 }
 
