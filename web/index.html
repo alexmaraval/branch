@@ -16,16 +16,8 @@
           </div>
           <div id="currentBranch" class="current-branch"></div>
         </div>
-        <div id="tree" class="tree"></div>
-        <div class="sidebar-actions">
-          <button id="exportBtn" class="btn ghost">Export JSON</button>
-          <button id="importBtn" class="btn ghost">Import JSON</button>
-          <input id="importFile" type="file" accept="application/json" hidden />
-        </div>
-      </aside>
-
-      <main class="main">
-        <header class="topbar">
+        <details class="sidebar-settings">
+          <summary>LLM Settings</summary>
           <div class="field">
             <label for="apiKey">API Key</label>
             <input
@@ -49,12 +41,24 @@
               <option value="gpt-4.1"></option>
             </datalist>
           </div>
-          <div class="actions">
-            <button id="renameBtn" class="btn ghost">Rename</button>
-            <button id="deleteBtn" class="btn ghost">Delete</button>
-            <button id="branchBtn" class="btn">Branch</button>
-          </div>
-        </header>
+        </details>
+        <div class="sidebar-tools">
+          <button id="renameBtn" class="btn accent subtle">Rename</button>
+          <button id="deleteBtn" class="btn outline">Delete</button>
+          <button id="branchBtn" class="btn accent">Branch</button>
+        </div>
+        <div class="tree-wrap">
+          <div id="tree" class="tree"></div>
+        </div>
+        <div class="sidebar-actions">
+          <button id="exportBtn" class="btn ghost">Export JSON</button>
+          <button id="importBtn" class="btn ghost">Import JSON</button>
+          <input id="importFile" type="file" accept="application/json" hidden />
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar"></header>
 
         <section id="chat" class="chat"></section>
 
@@ -64,9 +68,16 @@
             rows="3"
             placeholder="Type your message..."
           ></textarea>
+          <button id="sendBtn" class="send-fab" aria-label="Send">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="send-icon">
+              <path
+                d="M12 4l6.5 6.5-1.4 1.4L13 7.8V20h-2V7.8l-4.1 4.1-1.4-1.4L12 4z"
+                fill="currentColor"
+              />
+            </svg>
+          </button>
           <div class="composer-actions">
             <div id="status" class="status"></div>
-            <button id="sendBtn" class="btn primary">Send</button>
           </div>
         </footer>
       </main>
