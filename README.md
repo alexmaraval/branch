@@ -2,6 +2,9 @@
 
 A tiny local proof-of-concept chat app that lets you branch conversations into a tree, then explore and continue each branch.
 
+## Vibe code warning
+This repo has been 100% vibe coded with Codex. Use at your own risk.
+
 ## Features
 - Branching chat tree (each assistant response is a node)
 - Auto branch naming (from the first prompt after branching)
